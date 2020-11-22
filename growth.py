@@ -1,9 +1,9 @@
 import pygame
 import sys
+import os
 import random as rand
 from typing import Tuple
 from math import floor, hypot, sin, cos, pi
-
 
 # VARIABLES
 # =============================
@@ -184,15 +184,24 @@ screen = pygame.display.set_mode(SIZE)
 background = black
 screen.fill(background)
 pygame.display.set_caption('GROWTH')
-font = pygame.font.Font("data-latin.ttf", 32)
 
+
+# this lets pyinstaller stick the fonts in the right place
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+
+font = pygame.font.Font(resource_path("data-latin.ttf"), 32)
 
 # PLAYER
 # =============================
 you = You()
 Growth = pygame.sprite.Group()
 Growth.add(you)
-
 
 # PARTICLES
 # =============================
