@@ -361,7 +361,7 @@ while main:
     if (t2 := pygame.time.get_ticks()) - t > SPAWNRATE:
         t = t2
         # random speed and size
-        newsize = rand.randint(2, 10)
+        newsize = rand.randint(4, 10)
         newspeed = rand.uniform(1, 2)
         Others.add(Other(edge_len=newsize, speed_mult=newspeed))
         # print(f"n of Others: {len(Others)}")
