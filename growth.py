@@ -2,6 +2,7 @@ import pygame
 import sys
 import os
 import random as rand
+import colorsys
 from typing import Tuple
 from math import floor, hypot, sin, cos, pi
 
@@ -11,14 +12,29 @@ SIZE = width, height = 640, 480
 
 white = 255, 255, 255
 black = 0, 0, 0
-red = 255, 0, 0
-green = 0, 255, 0
-blue = 0, 0, 255
 
-FPS = 60  # frame rate
+FPS = 60  # frame rate cap
 SATURATED = False  # 'game over'
+SPAWNRATE = 150  # ms between particles spawning
+LOOPNUM = 300  # number of particles to collide until colours loop round
+MESSAGECHANCE = 300  # growth number to reach for 100% chance of a nice message
 
 main = True
+
+
+# DATA
+# =============================
+kind_words = [
+    'GROWTH IS BEAUTIFUL',
+    'YOU ARE ALIVE',
+    'BE NOT AFRAID',
+    'ALL IS WELL',
+    'NATURE IS BEAUTIFUL',
+    'THIS TOO SHALL PASS',
+    'THIS IS THE CYCLE',
+    'BREATH OUT',
+    'SUCCESS TAKES TIME',
+]
 
 
 # FUNCTIONS
@@ -30,24 +46,38 @@ def dist(a, b):
 
 def touching_edge(shape: pygame.Rect) -> bool:
     """Is a block touching an edge"""
-    if 0 in {shape.left, shape.top} \
-            or shape.right == width \
-            or shape.bottom == height:
+    if shape.x < 0 or shape.x > width:
+        return True
+    if shape.y < 0 or shape.y > height:
         return True
     else:
         return False
+
+
+def rangedcolourpicker(i: int, sv=(0.6, 0.6)):
+    """Return an RGB colour from range"""
+    c = tuple([floor(i * 255) for i in colorsys.hsv_to_rgb(i / LOOPNUM % LOOPNUM, *sv)])
+    check_colour_range(c)
+    return c
+
+
+def check_colour_range(col: tuple):
+    """Makes sure colour range is correct"""
+    for c in col:
+        if c < 0 or c > 255:
+            raise ValueError(f"Invalid colour {col}")
 
 
 # OBJECTS
 # =============================
 class Particle(pygame.sprite.Sprite):
     def __init__(self,
-                 edge_len: int = 20,
+                 edge_len: int = 10,
                  colour: Tuple[int, int, int] = white,
-                 speed_mult: float = 1):
+                 speed_mult: float = 1.5):
         super().__init__()
 
-        self.speed = speed_mult * edge_len // 2
+        self.speed = speed_mult * 3
         self.size = (edge_len, edge_len)
         self.colour = colour
 
@@ -65,6 +95,9 @@ class Particle(pygame.sprite.Sprite):
         self.movex += self.speed * x
         self.movey += self.speed * y
 
+    def update(self):
+        raise NotImplementedError
+
 
 class You(Particle):
     def __init__(self):
@@ -76,18 +109,19 @@ class You(Particle):
 
     def update(self):
         """update position"""
-        prevx = self.rect.x
-        prevy = self.rect.y
+        # check you don't overshoot
+        if self.rect.x + self.movex < 0:
+            return
+        if self.rect.x + self.movex > width:
+            return
+        if self.rect.y + self.movey < 0:
+            return
+        if self.rect.y + self.movey > height:
+            return
 
         # simple move
         self.rect.x += self.movex
         self.rect.y += self.movey
-
-        # control boundary
-        if self.rect.left < 0 or self.rect.right > width:
-            self.rect.x = prevx
-        if self.rect.top < 0 or self.rect.bottom > height:
-            self.rect.y = prevy
 
 
 class Other(Particle):
@@ -95,14 +129,18 @@ class Other(Particle):
         super().__init__(**kwargs)
 
         self.ATTATCHED = False  # whether or not the particle is attached to you
+        self.num = None  # The 'attachment number'
+        self.counter = 0  # counter for colour incrementing
 
         # colour
         self.image.fill((50, 50, 50))
 
         # choose an edge to spawn on
         self.rect.x, self.rect.y = (floor(rand.random() * width), floor(rand.random() * height))
-        self.rect.x = 0 if self.rect.x < width // 2 else width
-        self.rect.y = 0 if self.rect.y < height // 2 else height
+        if rand.random() < .5:
+            self.rect.x = 0 if self.rect.x < width // 2 else width
+        else:
+            self.rect.y = 0 if self.rect.y < height // 2 else height
 
         # choose an angle
         ang = rand.random() * 2 * pi
@@ -115,22 +153,25 @@ class Other(Particle):
         if (self.rect.y + self.movey < 0) or (self.rect.y + self.movey > height):
             self.movey *= -1
 
-        # print(f"Other generated at {self.rect.x, self.rect.y}, "
-        #       f"moving in direction ({self.movex:.2g}, {self.movey:.2g})")
-
     def update(self):
         """update position"""
-
         if self.ATTATCHED:
+            # move and increment colour
             self.movex = you.movex
             self.movey = you.movey
+            # self.increment_colour(len(Growth) // 100)
 
+        # What happens during a collision
         elif blocklist := self._is_collided():
             print(f"Collided! Growth of {len(Growth)}")
             # add to Growth
             self.remove(Others)
             Growth.add(self)
             self.ATTATCHED = True
+            self.num = len(Growth) - 1  # player counts as 1
+            self.counter = self.num  # start counter here
+
+            self.image.fill(rangedcolourpicker(self.num))
 
             # make sure it snaps to edge
             # closest block
@@ -152,60 +193,25 @@ class Other(Particle):
                 self.rect.left = edgeblock.rect.right
             elif edge == 3:
                 self.rect.right = edgeblock.rect.left
-            print(f'edge was {edge}')
+
+            # don't adjust position when attaching or clipping will happen
             return
 
         else:
             # control boundary
-            if self.rect.x < 0 or self.rect.x > width:
-                self.movex *= -1
-                # print("removed at", self.rect.x, self.rect.y)
-                self.kill()
-            if self.rect.y < 0 or self.rect.y > height:
-                # print("removed at", self.rect.x, self.rect.y)
+            if touching_edge(self.rect):
                 self.kill()
 
         # simple move
         self.rect.x += self.movex
         self.rect.y += self.movey
 
+    def increment_colour(self, s):
+        self.counter += 1
+        self.image.fill(rangedcolourpicker(self.counter))
+
     def _is_collided(self):
         return pygame.sprite.spritecollide(self, Growth, dokill=False)
-
-
-# SETUP
-# =============================
-pygame.init()
-
-clock = pygame.time.Clock()
-
-screen = pygame.display.set_mode(SIZE)
-
-background = black
-screen.fill(background)
-pygame.display.set_caption('GROWTH')
-
-
-# this lets pyinstaller stick the fonts in the right place
-def resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
-
-
-font = pygame.font.Font(resource_path("data-latin.ttf"), 32)
-
-# PLAYER
-# =============================
-you = You()
-Growth = pygame.sprite.Group()
-Growth.add(you)
-
-# PARTICLES
-# =============================
-Others = pygame.sprite.Group()
 
 
 # STATES
@@ -226,13 +232,27 @@ def regrow():
 
 def saturated():
     # print to screen
-    finaltext = font.render('SATURATION REACHED.', False, white)
+    finaltext = satufont.render('SATURATION REACHED.', False, white)
     textrect = finaltext.get_rect()
-    textrect.center = width // 2, height // 2
+    textrect.center = width // 2, height // 3
 
-    scoretext = font.render(f'FINAL SIZE: {len(Growth)}', False, white)
+    scoretext = satufont.render(f'FINAL SIZE: {len(Growth)}', False, white)
     scorerect = scoretext.get_rect()
-    scorerect.center = tuple([x + textrect.height for x in textrect.center])
+    scorerect.centerx = textrect.centerx
+    scorerect.centery = textrect.centery + textrect.height
+
+    texts = [finaltext, scoretext]
+    trects = [textrect, scorerect]
+
+    # Chance for kind words to appear as growth increases
+    if rand.random() < len(Growth) / MESSAGECHANCE:
+        kindtext = satufont.render(rand.choice(kind_words), False, white)
+        kindrect = kindtext.get_rect()
+        kindrect.centerx = textrect.centerx
+        kindrect.centery = scorerect.centery + scorerect.height * 2
+
+        texts.append(kindtext)
+        trects.append(kindrect)
 
     while SATURATED:
         for event in pygame.event.get():
@@ -248,10 +268,51 @@ def saturated():
                     sys.exit()
 
             screen.fill(background)
-            screen.blit(finaltext, textrect)
-            screen.blit(scoretext, scorerect)
+            for text, rect in zip(texts, trects):
+                screen.blit(text, rect)
             pygame.display.update()
             clock.tick(FPS)
+
+
+# SETUP
+# =============================
+pygame.init()
+
+clock = pygame.time.Clock()
+
+screen = pygame.display.set_mode(SIZE)
+
+background = black
+screen.fill(background)
+pygame.display.set_caption('GROWTH')
+
+
+# FONTS HANDLER
+# ============================
+# this lets pyinstaller stick the fonts in the right place
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+
+# for saturation screen
+satufont = pygame.font.Font(resource_path("data-latin.ttf"), 30)
+
+# onscreen info
+ingamefont = pygame.font.Font(resource_path("Ticketing.ttf"), 20)
+
+# PLAYER
+# =============================
+you = You()
+Growth = pygame.sprite.Group()
+Growth.add(you)
+
+# PARTICLES
+# =============================
+Others = pygame.sprite.Group()
 
 
 # MAIN LOOP
@@ -288,22 +349,33 @@ while main:
                 you.move(0, 1)
             if event.key == pygame.K_DOWN:
                 you.move(0, -1)
-            if event.key == ord('q'):
+            if event.key == ord('q') or event.key == pygame.K_ESCAPE:
                 pygame.quit()
                 sys.exit()
+            if event.key == pygame.K_SPACE:
+                regrow()
 
     # HANDLE PARTICLES
     # ==================================
     # generate new particle
-    if (t2 := pygame.time.get_ticks()) - t > 500:
+    if (t2 := pygame.time.get_ticks()) - t > SPAWNRATE:
         t = t2
-        Others.add(Other())
+        # random speed and size
+        newsize = rand.randint(2, 10)
+        newspeed = rand.uniform(1, 2)
+        Others.add(Other(edge_len=newsize, speed_mult=newspeed))
         # print(f"n of Others: {len(Others)}")
 
+    # End simulation
     for block in Growth:
         if touching_edge(block.rect):
             SATURATED = True
             saturated()
+
+    # onscreen info
+    sizetext = ingamefont.render(f'growth: {len(Growth)}', False, white)
+    sizetextrect = sizetext.get_rect()
+    sizetextrect.topleft = (10, 10)
 
     screen.fill(background)
     Growth.update()
@@ -312,5 +384,6 @@ while main:
     Growth.draw(screen)
     Others.draw(screen)
 
+    screen.blit(sizetext, sizetextrect)
     pygame.display.update()
     clock.tick(FPS)

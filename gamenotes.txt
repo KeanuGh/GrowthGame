@@ -28,8 +28,6 @@ Rules to live by:
 
 
 ### must-have features:
-- simple button click to restart
-- score (number of spawned particles)
 - colours:
 	- particles come in different colours
 	- options:
@@ -43,18 +41,22 @@ Rules to live by:
 - simple, minimalist menu:
 	- colours get muted when you lose
 	- black and white, bold text, in a pixelated / classic 'code' style
-- FIGURE OUT COOLER WORD THAN 'GAME OVER', something that sounds scientific (maybe 'SATURATION REACHED/EXCEEDED')
+- Let particles collide and bounce off each other
+- More little secrets in the saturation screen (random effects? different fonts? capitalised/lowercase?)
 
 
 ### maybe?:
 - adjust acceleration
 - different types of particles that have different movement patterns/ cause different effects?
+	- different particles appear when you are different sizes
 	- different shape: (careful to not be too tetris-like)
 	- different sizes: (different sizes worth different amount of points?)
 	- different patterns would be different colours/have different coloured outlines
 	- possible types:
 		- slow/fast
 		- wobbly
+		- chance to bounce off you
+		- chance to join together and join to you together
 		- curved (angle of curvature constant per colour?
 		- make you move faster/slower
 		- delete particles off you??? (difficult as would have to deal with bits falling off you - intensive)
