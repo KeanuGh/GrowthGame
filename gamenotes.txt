@@ -43,6 +43,10 @@ Rules to live by:
 	- black and white, bold text, in a pixelated / classic 'code' style
 - Let particles collide and bounce off each other
 - More little secrets in the saturation screen (random effects? different fonts? capitalised/lowercase?)
+- particle effects on collision
+- some kind of animation when you loose
+- some way to avoid you being able to just sit still and let it run? bits fall off if you stop moving?
+- able to change screen size in-game by just dragging window?
 
 
 ### maybe?:

@@ -3,7 +3,7 @@ import sys
 import os
 import random as rand
 import colorsys
-from typing import Tuple
+from typing import Tuple, Union
 from math import floor, hypot, sin, cos, pi
 
 # VARIABLES
@@ -11,13 +11,15 @@ from math import floor, hypot, sin, cos, pi
 SIZE = width, height = 640, 480
 
 white = 255, 255, 255
+grey = 50, 50, 50
 black = 0, 0, 0
 
 FPS = 60  # frame rate cap
 SATURATED = False  # 'game over'
 SPAWNRATE = 150  # ms between particles spawning
-LOOPNUM = 300  # number of particles to collide until colours loop round
-MESSAGECHANCE = 300  # growth number to reach for 100% chance of a nice message
+LOOPNUM = 600  # number of particles to collide until colours loop round
+MESSAGECHANCE = 600  # growth number to reach for 100% chance of a nice message
+NUMSTARS = 20  # number of stars when colliding
 
 main = True
 
@@ -57,15 +59,15 @@ def touching_edge(shape: pygame.Rect) -> bool:
 def rangedcolourpicker(i: int, sv=(0.6, 0.6)):
     """Return an RGB colour from range"""
     c = tuple([floor(i * 255) for i in colorsys.hsv_to_rgb(i / LOOPNUM % LOOPNUM, *sv)])
-    check_colour_range(c)
+    # check_colour_range(c)
     return c
 
-
-def check_colour_range(col: tuple):
-    """Makes sure colour range is correct"""
-    for c in col:
-        if c < 0 or c > 255:
-            raise ValueError(f"Invalid colour {col}")
+# I know it works, no need to check now :P
+# def check_colour_range(col: tuple):
+#     """Makes sure colour range is valid"""
+#     for c in col:
+#         if c < 0 or c > 255:
+#             raise ValueError(f"Invalid colour {col}")
 
 
 # OBJECTS
@@ -133,7 +135,7 @@ class Other(Particle):
         self.counter = 0  # counter for colour incrementing
 
         # colour
-        self.image.fill((50, 50, 50))
+        self.image.fill(grey)
 
         # choose an edge to spawn on
         self.rect.x, self.rect.y = (floor(rand.random() * width), floor(rand.random() * height))
@@ -170,8 +172,9 @@ class Other(Particle):
             self.ATTATCHED = True
             self.num = len(Growth) - 1  # player counts as 1
             self.counter = self.num  # start counter here
+            self.colour = rangedcolourpicker(self.num)
 
-            self.image.fill(rangedcolourpicker(self.num))
+            self.image.fill(self.colour)
 
             # make sure it snaps to edge
             # closest block
@@ -193,6 +196,9 @@ class Other(Particle):
                 self.rect.left = edgeblock.rect.right
             elif edge == 3:
                 self.rect.right = edgeblock.rect.left
+
+            # TODO: try and prevent clipping by testing if particle is inside another particle in growth
+            # and moving 'accordingly' if it is
 
             # don't adjust position when attaching or clipping will happen
             return
@@ -231,6 +237,9 @@ def regrow():
 
 
 def saturated():
+    # change colours
+    you.image.fill(grey)
+
     # print to screen
     finaltext = satufont.render('SATURATION REACHED.', False, white)
     textrect = finaltext.get_rect()
@@ -255,21 +264,21 @@ def saturated():
         trects.append(kindrect)
 
     while SATURATED:
-        for event in pygame.event.get():
+        for e in pygame.event.get():
 
-            if event.type == pygame.QUIT:
+            if e.type == pygame.QUIT:
                 pygame.quit()
                 quit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
+            if e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_SPACE:
                     regrow()
-                if event.key == ord('q') or event.key == pygame.K_ESCAPE:
+                if e.key == ord('q') or e.key == pygame.K_ESCAPE:
                     pygame.quit()
                     sys.exit()
 
-            screen.fill(background)
             for text, rect in zip(texts, trects):
                 screen.blit(text, rect)
+            Growth.draw(screen)
             pygame.display.update()
             clock.tick(FPS)
 
@@ -331,6 +340,8 @@ while main:
 
         # KEY PRESSES
         if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                regrow()
             if event.key == pygame.K_LEFT:
                 you.move(-1, 0)
             if event.key == pygame.K_RIGHT:
@@ -352,8 +363,6 @@ while main:
             if event.key == ord('q') or event.key == pygame.K_ESCAPE:
                 pygame.quit()
                 sys.exit()
-            if event.key == pygame.K_SPACE:
-                regrow()
 
     # HANDLE PARTICLES
     # ==================================
@@ -364,7 +373,6 @@ while main:
         newsize = rand.randint(4, 10)
         newspeed = rand.uniform(1, 2)
         Others.add(Other(edge_len=newsize, speed_mult=newspeed))
-        # print(f"n of Others: {len(Others)}")
 
     # End simulation
     for block in Growth:
