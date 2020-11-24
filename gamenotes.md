@@ -43,6 +43,8 @@ Rules to live by:
 - some way to avoid you being able to just sit still and let it run? bits fall off if you stop moving?
 - able to change screen size in-game by just dragging window?
 - particles get faster/more spawned per second as the game goes on?
+- MENU with settings you can change
+- Onscreen timer
 
 
 ### maybe?:

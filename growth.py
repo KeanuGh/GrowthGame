@@ -18,7 +18,7 @@ SATURATED = False  # 'game over'
 SPAWNRATE = 150  # ms between particles spawning
 LOOPNUM = 600  # number of particles to collide until colours loop round
 MESSAGECHANCE = 600  # growth number to reach for 100% chance of a nice message
-NUMPOOF = 30  # number of stars when colliding
+NUMPOOF = 50  # number of stars when colliding
 
 main = True
 
@@ -273,6 +273,7 @@ class Poof(Particle):
 def regrow():
     Growth.empty()
     Others.empty()
+    Poofs.empty()
 
     you.rect.x = width // 2
     you.rect.y = height // 2
