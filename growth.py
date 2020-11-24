@@ -2,9 +2,8 @@ import pygame
 import sys
 import os
 import random as rand
-import colorsys
-from typing import Tuple, Union
-from math import floor, hypot, sin, cos, pi
+from typing import Tuple
+from math import sqrt, sin, cos, pi
 
 # VARIABLES
 # =============================
@@ -19,10 +18,9 @@ SATURATED = False  # 'game over'
 SPAWNRATE = 150  # ms between particles spawning
 LOOPNUM = 600  # number of particles to collide until colours loop round
 MESSAGECHANCE = 600  # growth number to reach for 100% chance of a nice message
-NUMSTARS = 20  # number of stars when colliding
+NUMPOOF = 30  # number of stars when colliding
 
 main = True
-
 
 # DATA
 # =============================
@@ -43,10 +41,10 @@ kind_words = [
 # =============================
 def dist(a, b):
     """Gets distance between centers of two rects"""
-    return hypot(a.rect.centerx - b.rect.centerx, a.rect.centery - b.rect.centery)
+    return sqrt((a.rect.centerx - b.rect.centerx) ** 2 + (a.rect.centery - b.rect.centery) ** 2)
 
 
-def touching_edge(shape: pygame.Rect) -> bool:
+def outofbounds(shape: pygame.Rect) -> bool:
     """Is a block touching an edge"""
     if shape.x < 0 or shape.x > width:
         return True
@@ -56,18 +54,40 @@ def touching_edge(shape: pygame.Rect) -> bool:
         return False
 
 
-def rangedcolourpicker(i: int, sv=(0.6, 0.6)):
+def hsv_to_rgb(h: float, s: float, v: float) -> Tuple[int, int, int]:
+    """Literally just the code from coloursys but with type hints"""
+    if s == 0.0:
+        v = int(v * 255)
+        return v, v, v
+    i = int(h * 6.)
+    f = (h * 6.) - i
+    p, q, t = int(255*(v * (1. - s))), int(255*(v * (1. - s * f))), int(255*(v * (1. - s * (1. - f))))
+    v = int(v * 255)
+    i %= 6
+    if i == 0:
+        return v, t, p
+    if i == 1:
+        return q, v, p
+    if i == 2:
+        return p, v, t
+    if i == 3:
+        return p, q, v
+    if i == 4:
+        return t, p, v
+    if i == 5:
+        return v, p, q
+
+
+def rangedcolourpicker(i: int, sv=(0.6, 0.6)) -> Tuple[int, int, int]:
     """Return an RGB colour from range"""
-    c = tuple([floor(i * 255) for i in colorsys.hsv_to_rgb(i / LOOPNUM % LOOPNUM, *sv)])
-    # check_colour_range(c)
+    c = hsv_to_rgb(i / LOOPNUM % LOOPNUM, *sv)
     return c
 
-# I know it works, no need to check now :P
-# def check_colour_range(col: tuple):
-#     """Makes sure colour range is valid"""
-#     for c in col:
-#         if c < 0 or c > 255:
-#             raise ValueError(f"Invalid colour {col}")
+
+def init_poof(pos: Tuple[float, float], col: Tuple[int, int, int]):
+    for i in range(NUMPOOF):
+        poof = Poof(pos, colour=col)
+        Poofs.add(poof)
 
 
 # OBJECTS
@@ -79,8 +99,8 @@ class Particle(pygame.sprite.Sprite):
                  speed_mult: float = 1.5):
         super().__init__()
 
-        self.speed = speed_mult * 3
         self.size = (edge_len, edge_len)
+        self.speed = speed_mult * 3
         self.colour = colour
 
         self.image = pygame.Surface(self.size)
@@ -138,7 +158,7 @@ class Other(Particle):
         self.image.fill(grey)
 
         # choose an edge to spawn on
-        self.rect.x, self.rect.y = (floor(rand.random() * width), floor(rand.random() * height))
+        self.rect.x, self.rect.y = (int(rand.random() * width), int(rand.random() * height))
         if rand.random() < .5:
             self.rect.x = 0 if self.rect.x < width // 2 else width
         else:
@@ -163,9 +183,12 @@ class Other(Particle):
             self.movey = you.movey
             # self.increment_colour(len(Growth) // 100)
 
+            # simple move
+            self.rect.x += self.movex
+            self.rect.y += self.movey
+
         # What happens during a collision
         elif blocklist := self._is_collided():
-            print(f"Collided! Growth of {len(Growth)}")
             # add to Growth
             self.remove(Others)
             Growth.add(self)
@@ -197,6 +220,9 @@ class Other(Particle):
             elif edge == 3:
                 self.rect.right = edgeblock.rect.left
 
+            # poof! effect
+            init_poof(self.rect.center, self.colour)
+
             # TODO: try and prevent clipping by testing if particle is inside another particle in growth
             # and moving 'accordingly' if it is
 
@@ -204,20 +230,42 @@ class Other(Particle):
             return
 
         else:
+            # simple move
+            self.rect.x += self.movex
+            self.rect.y += self.movey
+
             # control boundary
-            if touching_edge(self.rect):
+            if outofbounds(self.rect):
                 self.kill()
+                del self
 
-        # simple move
-        self.rect.x += self.movex
-        self.rect.y += self.movey
-
-    def increment_colour(self, s):
-        self.counter += 1
-        self.image.fill(rangedcolourpicker(self.counter))
+    # def increment_colour(self, s):
+    #     self.counter += 1
+    #     self.image.fill(rangedcolourpicker(self.counter))
 
     def _is_collided(self):
         return pygame.sprite.spritecollide(self, Growth, dokill=False)
+
+
+class Poof(Particle):
+    """Particle effect"""
+    def __init__(self, pos: Tuple[float, float], **kwargs):
+        super().__init__(edge_len=1, **kwargs)
+
+        self.rect.center = pos
+
+        # choose an angle and move
+        ang = rand.random() * 2 * pi
+        self.movex = cos(ang) * self.speed
+        self.movey = sin(ang) * self.speed
+
+    def update(self):
+        # simple move
+        self.rect.x += self.movex
+        self.rect.y += self.movey
+        if outofbounds(self.rect):
+            self.kill()
+            del self
 
 
 # STATES
@@ -271,14 +319,15 @@ def saturated():
                 quit()
             if e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_SPACE:
+                    you.image.fill(white)
                     regrow()
                 if e.key == ord('q') or e.key == pygame.K_ESCAPE:
                     pygame.quit()
                     sys.exit()
 
+            Growth.draw(screen)
             for text, rect in zip(texts, trects):
                 screen.blit(text, rect)
-            Growth.draw(screen)
             pygame.display.update()
             clock.tick(FPS)
 
@@ -316,17 +365,17 @@ ingamefont = pygame.font.Font(resource_path("Ticketing.ttf"), 20)
 # PLAYER
 # =============================
 you = You()
-Growth = pygame.sprite.Group()
+Growth = pygame.sprite.Group()  # to hold you and all particles attached to you
 Growth.add(you)
 
 # PARTICLES
 # =============================
-Others = pygame.sprite.Group()
-
+Others = pygame.sprite.Group()  # to hold unattached particles
+Poofs = pygame.sprite.Group()  # to hold particle effects
 
 # MAIN LOOP
 # =============================
-t = pygame.time.get_ticks()
+t1 = pygame.time.get_ticks()
 while main:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -367,16 +416,16 @@ while main:
     # HANDLE PARTICLES
     # ==================================
     # generate new particle
-    if (t2 := pygame.time.get_ticks()) - t > SPAWNRATE:
-        t = t2
+    if (t2 := pygame.time.get_ticks()) - t1 > SPAWNRATE:
+        t1 = t2
         # random speed and size
         newsize = rand.randint(4, 10)
-        newspeed = rand.uniform(1, 2)
+        newspeed = rand.uniform(0.8, 2)
         Others.add(Other(edge_len=newsize, speed_mult=newspeed))
 
     # End simulation
     for block in Growth:
-        if touching_edge(block.rect):
+        if outofbounds(block.rect):
             SATURATED = True
             saturated()
 
@@ -388,9 +437,11 @@ while main:
     screen.fill(background)
     Growth.update()
     Others.update()
+    Poofs.update()
 
     Growth.draw(screen)
     Others.draw(screen)
+    Poofs.draw(screen)
 
     screen.blit(sizetext, sizetextrect)
     pygame.display.update()

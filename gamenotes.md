@@ -19,34 +19,30 @@ Rules to live by:
 - when they stick to you they move with you as part of you
 - if any part of you touches the edge, you lose
 - particles spawn on the edge of the screen at a random position, and move in a random direction
-	- possible range of angles should be towards the middle of the screen???
-	  (this is to avoid particles spawning and despawning too quickly)
 - particles despawn when they reach the other edge of the screen
 - score based on number of particles stuck to you
 	- (or maybe n of particles spawned or n or particles despawned)
-- particles get faster/more spawned per second as the game goes on
 
 
-### must-have features:
+### TODO:
 - colours:
-	- particles come in different colours
-	- options:
-		- particles are created with a colour and that colour increases by 1 across the rainbow
-		- particles are colourless when they are created but start changing colours when they stick to you,
-		  always different colours based on when they touch you (there is some internal counter)
-	- Colours should modulo within a range (eg each (r, g, b) for 50 <= r, g, b < 170)
+	- <s>particles come in different colours</s>
+	- <s>particles are created with a colour and that colour increases by 1 across the rainbow</s>
+	- <s>Colours should modulo within a range (eg each (r, g, b) for 50 <= r, g, b < 170)</s>
+	- particles should start changing colour after a certain score
 - possible sound design styles:
 	- classic bleep bloop
 	- something muted
 - simple, minimalist menu:
 	- colours get muted when you lose
-	- black and white, bold text, in a pixelated / classic 'code' style
+	- <s>black and white, bold text, in a pixelated / classic 'code' style</s>
 - Let particles collide and bounce off each other
 - More little secrets in the saturation screen (random effects? different fonts? capitalised/lowercase?)
-- particle effects on collision
+- <s>particle effects on collision</s>
 - some kind of animation when you loose
 - some way to avoid you being able to just sit still and let it run? bits fall off if you stop moving?
 - able to change screen size in-game by just dragging window?
+- particles get faster/more spawned per second as the game goes on?
 
 
 ### maybe?:
