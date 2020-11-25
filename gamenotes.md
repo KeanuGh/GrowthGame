@@ -30,9 +30,9 @@ Rules to live by:
 	- <s>particles are created with a colour and that colour increases by 1 across the rainbow</s>
 	- <s>Colours should modulo within a range (eg each (r, g, b) for 50 <= r, g, b < 170)</s>
 	- particles should start changing colour after a certain score
-- possible sound design styles:
+- <s>possible sound design styles:
 	- classic bleep bloop
-	- something muted
+	- something muted</s>
 - simple, minimalist menu:
 	- colours get muted when you lose
 	- <s>black and white, bold text, in a pixelated / classic 'code' style</s>
@@ -45,6 +45,7 @@ Rules to live by:
 - particles get faster/more spawned per second as the game goes on?
 - MENU with settings you can change
 - Onscreen timer
+- MOMENTUM!
 
 
 ### maybe?:

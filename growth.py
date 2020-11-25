@@ -1,26 +1,34 @@
 import pygame
 import sys
 import os
+import glob
 import random as rand
 from typing import Tuple
+from itertools import cycle
 from math import sqrt, sin, cos, pi
 
 # VARIABLES
 # =============================
-SIZE = width, height = 640, 480
-
+# display
+SCREENSIZE = WIDTH, HEIGHT = 640, 480
 white = 255, 255, 255
 grey = 50, 50, 50
 black = 0, 0, 0
 
+# engine
+MAIN = True
 FPS = 60  # frame rate cap
 SATURATED = False  # 'game over'
+GROWCOUNT = 0  # global counter for number of blocks attached to you
+
+# particle settings
+SIZERANGE = 3, 10
+SPEEDRANGE = 0.8, 2
 SPAWNRATE = 150  # ms between particles spawning
 LOOPNUM = 600  # number of particles to collide until colours loop round
 MESSAGECHANCE = 600  # growth number to reach for 100% chance of a nice message
 NUMPOOF = 50  # number of stars when colliding
 
-main = True
 
 # DATA
 # =============================
@@ -46,16 +54,16 @@ def dist(a, b):
 
 def outofbounds(shape: pygame.Rect) -> bool:
     """Is a block touching an edge"""
-    if shape.x < 0 or shape.x > width:
+    if shape.x < 0 or shape.x > WIDTH:
         return True
-    if shape.y < 0 or shape.y > height:
+    if shape.y < 0 or shape.y > HEIGHT:
         return True
     else:
         return False
 
 
 def hsv_to_rgb(h: float, s: float, v: float) -> Tuple[int, int, int]:
-    """Literally just the code from coloursys but with type hints"""
+    """Converts from HSV colour format to RGB. (colorsys code reworked)"""
     if s == 0.0:
         v = int(v * 255)
         return v, v, v
@@ -88,6 +96,18 @@ def init_poof(pos: Tuple[float, float], col: Tuple[int, int, int]):
     for i in range(NUMPOOF):
         poof = Poof(pos, colour=col)
         Poofs.add(poof)
+
+
+def resource_path(relative_path):
+    """
+    RESOURCE HANDLER
+    this lets pyinstaller stick files in the right place
+    """
+    try:
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 
 # OBJECTS
@@ -126,19 +146,19 @@ class You(Particle):
         super().__init__()
 
         # start in the middle of the screen
-        self.rect.x = width // 2
-        self.rect.y = height // 2
+        self.rect.x = WIDTH // 2
+        self.rect.y = HEIGHT // 2
 
     def update(self):
         """update position"""
         # check you don't overshoot
         if self.rect.x + self.movex < 0:
             return
-        if self.rect.x + self.movex > width:
+        if self.rect.x + self.movex > WIDTH:
             return
         if self.rect.y + self.movey < 0:
             return
-        if self.rect.y + self.movey > height:
+        if self.rect.y + self.movey > HEIGHT:
             return
 
         # simple move
@@ -158,21 +178,21 @@ class Other(Particle):
         self.image.fill(grey)
 
         # choose an edge to spawn on
-        self.rect.x, self.rect.y = (int(rand.random() * width), int(rand.random() * height))
+        self.rect.x, self.rect.y = (int(rand.random() * WIDTH), int(rand.random() * HEIGHT))
         if rand.random() < .5:
-            self.rect.x = 0 if self.rect.x < width // 2 else width
+            self.rect.x = 0 if self.rect.x < WIDTH // 2 else WIDTH
         else:
-            self.rect.y = 0 if self.rect.y < height // 2 else height
+            self.rect.y = 0 if self.rect.y < HEIGHT // 2 else HEIGHT
 
         # choose an angle
         ang = rand.random() * 2 * pi
 
         # set movement towards screen
         self.movex = cos(ang) * self.speed
-        if (self.rect.x + self.movex < 0) or (self.rect.x + self.movex > width):
+        if (self.rect.x + self.movex < 0) or (self.rect.x + self.movex > WIDTH):
             self.movex *= -1
         self.movey = sin(ang) * self.speed
-        if (self.rect.y + self.movey < 0) or (self.rect.y + self.movey > height):
+        if (self.rect.y + self.movey < 0) or (self.rect.y + self.movey > HEIGHT):
             self.movey *= -1
 
     def update(self):
@@ -222,6 +242,10 @@ class Other(Particle):
 
             # poof! effect
             init_poof(self.rect.center, self.colour)
+
+            # boop
+            pygame.mixer.Sound.play(sound_size_dict.get(self.size[0], blip))
+            # pygame.mixer.Sound.play(melody[(len(Growth) - 1) % (len(melody) - 1)])
 
             # TODO: try and prevent clipping by testing if particle is inside another particle in growth
             # and moving 'accordingly' if it is
@@ -275,24 +299,21 @@ def regrow():
     Others.empty()
     Poofs.empty()
 
-    you.rect.x = width // 2
-    you.rect.y = height // 2
-    you.movex = 0
-    you.movey = 0
+    global you
+    you = You()
     Growth.add(you)
 
-    global SATURATED
+    global SATURATED, MAIN
     SATURATED = False
+    MAIN = True
+    pygame.mixer.Sound.play(blip)
 
 
 def saturated():
-    # change colours
-    you.image.fill(grey)
-
     # print to screen
     finaltext = satufont.render('SATURATION REACHED.', False, white)
     textrect = finaltext.get_rect()
-    textrect.center = width // 2, height // 3
+    textrect.center = WIDTH // 2, HEIGHT // 3
 
     scoretext = satufont.render(f'FINAL SIZE: {len(Growth)}', False, white)
     scorerect = scoretext.get_rect()
@@ -339,23 +360,34 @@ pygame.init()
 
 clock = pygame.time.Clock()
 
-screen = pygame.display.set_mode(SIZE)
+screen = pygame.display.set_mode(SCREENSIZE)
 
+# display settings
 background = black
 screen.fill(background)
 pygame.display.set_caption('GROWTH')
 
 
-# FONTS HANDLER
-# ============================
-# this lets pyinstaller stick the fonts in the right place
-def resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except AttributeError:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
+# sounds
+blip = pygame.mixer.Sound('sounds/Blip1.wav')
+ouch = pygame.mixer.Sound('sounds/Ouch1.wav')
+# melody = [pygame.mixer.Sound(note) for note in glob.glob('sounds/melody/melody*.ogg')]
 
+# to make each size of block make a different noise
+boops = [pygame.mixer.Sound(f) for f in glob.glob('sounds/Boops/Boop?.wav')]
+sound_size_dict = {  # will have to try and rework this for variable size ranges but it'll do for now
+    3: boops[0],
+    4: boops[1],
+    5: boops[2],
+    6: boops[3],
+    7: boops[4],
+    8: boops[5],
+    9: boops[6],
+    10: boops[7]
+}
+
+# startup noise
+pygame.mixer.Sound.play(blip)
 
 # for saturation screen
 satufont = pygame.font.Font(resource_path("data-latin.ttf"), 30)
@@ -377,14 +409,14 @@ Poofs = pygame.sprite.Group()  # to hold particle effects
 # MAIN LOOP
 # =============================
 t1 = pygame.time.get_ticks()
-while main:
+while MAIN:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
             try:
                 sys.exit()
             finally:
-                main = False
+                MAIN = False
 
         keys = pygame.key.get_pressed()
 
@@ -420,14 +452,16 @@ while main:
     if (t2 := pygame.time.get_ticks()) - t1 > SPAWNRATE:
         t1 = t2
         # random speed and size
-        newsize = rand.randint(4, 10)
-        newspeed = rand.uniform(0.8, 2)
+        newsize = rand.randint(*SIZERANGE)
+        newspeed = rand.uniform(*SPEEDRANGE)
         Others.add(Other(edge_len=newsize, speed_mult=newspeed))
 
     # End simulation
     for block in Growth:
         if outofbounds(block.rect):
             SATURATED = True
+            MAIN = False
+            pygame.mixer.Sound.play(ouch)
             saturated()
 
     # onscreen info
