@@ -10,3 +10,4 @@ Controls:
 - Arrow keys to move
 - 'q' or ESC to quit
 - SPACE to restart
+- 'p' to pause
