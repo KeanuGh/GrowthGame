@@ -4,7 +4,6 @@ import os
 import glob
 import random as rand
 from typing import Tuple
-from itertools import cycle
 from math import sqrt, sin, cos, pi
 
 # VARIABLES
@@ -29,7 +28,6 @@ LOOPNUM = 600  # number of particles to collide until colours loop round
 MESSAGECHANCE = 600  # growth number to reach for 100% chance of a nice message
 NUMPOOF = 50  # number of stars when colliding
 
-
 # DATA
 # =============================
 kind_words = [
@@ -53,10 +51,11 @@ def dist(a, b):
 
 
 def outofbounds(shape: pygame.Rect) -> bool:
-    """Is a block touching an edge"""
-    if shape.x < 0 or shape.x > WIDTH:
-        return True
-    if shape.y < 0 or shape.y > HEIGHT:
+    """Is a block is outside the screen"""
+    if shape.x < 0 or \
+       shape.x > WIDTH or \
+       shape.y < 0 or \
+       shape.y > HEIGHT:
         return True
     else:
         return False
@@ -69,7 +68,7 @@ def hsv_to_rgb(h: float, s: float, v: float) -> Tuple[int, int, int]:
         return v, v, v
     i = int(h * 6.)
     f = (h * 6.) - i
-    p, q, t = int(255*(v * (1. - s))), int(255*(v * (1. - s * f))), int(255*(v * (1. - s * (1. - f))))
+    p, q, t = int(255 * (v * (1. - s))), int(255 * (v * (1. - s * f))), int(255 * (v * (1. - s * (1. - f))))
     v = int(v * 255)
     i %= 6
     if i == 0:
@@ -140,6 +139,9 @@ class Particle(pygame.sprite.Sprite):
     def update(self):
         raise NotImplementedError
 
+    def set_col(self):
+        self.image.fill(self.colour)
+
 
 class You(Particle):
     def __init__(self):
@@ -173,6 +175,7 @@ class Other(Particle):
         self.ATTATCHED = False  # whether or not the particle is attached to you
         self.num = None  # The 'attachment number'
         self.counter = 0  # counter for colour incrementing
+        self._last_block = False  # flag as to whether this is the last block in the growth
 
         # colour
         self.image.fill(grey)
@@ -201,6 +204,7 @@ class Other(Particle):
             # move and increment colour
             self.movex = you.movex
             self.movey = you.movey
+
             # self.increment_colour(len(Growth) // 100)
 
             # simple move
@@ -209,17 +213,12 @@ class Other(Particle):
 
         # What happens during a collision
         elif blocklist := self._is_collided():
-            # add to Growth
-            self.remove(Others)
-            Growth.add(self)
-            self.ATTATCHED = True
-            self.num = len(Growth) - 1  # player counts as 1
-            self.counter = self.num  # start counter here
-            self.colour = rangedcolourpicker(self.num)
-
-            self.image.fill(self.colour)
-
             # make sure it snaps to edge
+            # first move back to where you were before the collision
+            # (this helps prevents clipping in the case where the particle has moved too far into the crystal)
+            self.rect.x -= self.movex
+            self.rect.y -= self.movey
+
             # closest block
             edgeblock = min(blocklist, key=lambda x: dist(x, self))
 
@@ -228,20 +227,22 @@ class Other(Particle):
                 abs(self.rect.top - edgeblock.rect.bottom),
                 abs(self.rect.bottom - edgeblock.rect.top),
                 abs(self.rect.left - edgeblock.rect.right),
-                abs(self.rect.right - edgeblock.rect.left)
+                abs(self.rect.right - edgeblock.rect.left),
             ]
+            # snap to closest edge and update 'unsnapped' coordinate to prevent floating blocks
             edge = dists.index(min(dists))
             if edge == 0:
                 self.rect.top = edgeblock.rect.bottom
+                self.rect.x += self.movex
             elif edge == 1:
                 self.rect.bottom = edgeblock.rect.top
+                self.rect.x += self.movex
             elif edge == 2:
                 self.rect.left = edgeblock.rect.right
+                self.rect.y += self.movey
             elif edge == 3:
                 self.rect.right = edgeblock.rect.left
-
-            # poof! effect
-            init_poof(self.rect.center, self.colour)
+                self.rect.y += self.movey
 
             # boop
             pygame.mixer.Sound.play(sound_size_dict.get(self.size[0], blip))
@@ -249,6 +250,26 @@ class Other(Particle):
 
             # TODO: try and prevent clipping by testing if particle is inside another particle in growth
             # and moving 'accordingly' if it is
+
+            # add to Growth
+            self.remove(Others)
+            Growth.add(self)
+            self.ATTATCHED = True
+            self.num = len(Growth) - 1  # player counts as 1
+            self.counter = self.num  # start counter here
+
+            # DEBUG: set a weird colour (bright yellow?) if block is still clipped
+            # if self._is_collided():
+            #     self.colour = (229, 255, 0)
+            # else:
+            self.colour = rangedcolourpicker(self.num)
+
+            # poof! effect
+            init_poof(self.rect.center, self.colour)
+
+            # off-white for the last block to collide
+            self.image.fill((150, 150, 150))
+            Growth.sprites()[-2].set_col()
 
             # don't adjust position when attaching or clipping will happen
             return
@@ -273,6 +294,7 @@ class Other(Particle):
 
 class Poof(Particle):
     """Particle effect"""
+
     def __init__(self, pos: Tuple[float, float], **kwargs):
         super().__init__(edge_len=1, **kwargs)
 
@@ -303,10 +325,33 @@ def regrow():
     you = You()
     Growth.add(you)
 
-    global SATURATED, MAIN
+    global SATURATED, MAIN, PAUSED
     SATURATED = False
+    PAUSED = False
     MAIN = True
     pygame.mixer.Sound.play(blip)
+
+
+def paused():
+    pausetext = ingamefont.render(f'PAUSED', False, white)
+    pausetextrect = pausetext.get_rect()
+    pausetextrect.topright = (WIDTH - 10, 10)
+
+    while True:
+        for e in pygame.event.get():
+            if e.type == pygame.KEYDOWN:
+                if e.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if e.key == ord('q') or e.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+                if e.key == ord('p'):
+                    return
+
+        screen.blit(pausetext, pausetextrect)
+        pygame.display.update()
+        clock.tick(FPS)
 
 
 def saturated():
@@ -367,14 +412,13 @@ background = black
 screen.fill(background)
 pygame.display.set_caption('GROWTH')
 
-
 # sounds
-blip = pygame.mixer.Sound('sounds/Blip1.wav')
-ouch = pygame.mixer.Sound('sounds/Ouch1.wav')
+blip = pygame.mixer.Sound(resource_path('sounds/Blip1.wav'))
+ouch = pygame.mixer.Sound(resource_path('sounds/Ouch1.wav'))
 # melody = [pygame.mixer.Sound(note) for note in glob.glob('sounds/melody/melody*.ogg')]
 
 # to make each size of block make a different noise
-boops = [pygame.mixer.Sound(f) for f in glob.glob('sounds/Boops/Boop?.wav')]
+boops = [pygame.mixer.Sound(f) for f in glob.glob(resource_path('sounds/Boops/Boop?.wav'))]
 sound_size_dict = {  # will have to try and rework this for variable size ranges but it'll do for now
     3: boops[0],
     4: boops[1],
@@ -424,6 +468,8 @@ while MAIN:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 regrow()
+            if event.key == ord('p'):
+                paused()
             if event.key == pygame.K_LEFT:
                 you.move(-1, 0)
             if event.key == pygame.K_RIGHT:
@@ -461,7 +507,7 @@ while MAIN:
         if outofbounds(block.rect):
             SATURATED = True
             MAIN = False
-            pygame.mixer.Sound.play(ouch)
+            # pygame.mixer.Sound.play(ouch)
             saturated()
 
     # onscreen info
